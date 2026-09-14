@@ -1,0 +1,65 @@
+# Release. Tag `v<version>` to build the userscript and attach it to a GitHub release.
+#
+# This repository is GitHub-only: it is not published to npm and it has no package on any registry.
+# It is where the userscript is built, so it is where the userscript is released. `@mg.js/*` is a
+# library that publishes packages and never ships a script, so the release lives here and
+# not there.
+#
+# The asset's basename matters to the update check. `scripts/build.ts` writes the banner's `@downloadURL` and
+# `@updateURL` as `.../releases/latest/download/magicgarden.user.js`, so the attached file must keep
+# exactly that name for Tampermonkey's update check to resolve. `gh release create <tag> <path>`
+# names the asset after the path, so do not rename the build output.
+#
+# `npm ci` below resolves `@mg.js/*` from the npm registry, so this job needs nothing but a checkout
+# of this repository. The two dependencies are `^0.1.0` ranges for exactly that reason: the `file:`
+# paths they replaced pointed outside this repository and could never resolve on a runner.
+
+name: release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write # `gh release create`; nothing else in this job needs more
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          # No dependency cache, and that is on purpose: this job builds the artifact people install, and a
+          # stale cache is one more input that could influence it. Release builds do not need speed.
+
+      - name: Install from the lockfile
+        run: npm ci
+
+      # The banner's `@version` is read from `package.json`, and Tampermonkey decides whether to
+      # update an installed script by comparing that value. A tag that disagrees with it would
+      # publish a release whose script claims a different version than the release it is attached to.
+      # Installed copies would then never see the update.
+      - name: Assert the tag matches the packaged version
+        run: |
+          version=$(node -p "require('./package.json').version")
+          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match package.json version $version"
+            exit 1
+          fi
+          echo "tag $GITHUB_REF_NAME matches package.json version $version"
+
+      # The whole gate: typecheck, build, bundle, test, and the size budget. The released file is
+      # produced by this step, so what is attached is what passed.
+      - name: Verify (build, bundle, test, size)
+        run: npm run verify
+
+      - name: Attach the built userscript to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/magicgarden.user.js \
+            --title "$GITHUB_REF_NAME" \
+            --generate-notes
