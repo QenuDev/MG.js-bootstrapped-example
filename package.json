@@ -1,0 +1,25 @@
+{
+  "name": "bootstrapped-example",
+  "version": "0.1.1",
+  "private": true,
+  "type": "module",
+  "description": "The example Magic Garden userscript, built on @mg.js/bootstrapped as a library.",
+  "scripts": {
+    "build": "tsc -b --force",
+    "bundle": "tsx scripts/build.ts",
+    "test": "node --import tsx --test \"tests/**/*.test.ts\"",
+    "verify": "tsc -b --force && tsx scripts/build.ts && node --import tsx --test \"tests/**/*.test.ts\" && npm run size",
+    "size": "tsx scripts/assert-bundle-size.ts"
+  },
+  "dependencies": {
+    "@mg.js/bootstrapped": "^0.1.0",
+    "@mg.js/common": "^0.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.5.1",
+    "@types/tampermonkey": "^5.0.0",
+    "esbuild": "^0.25.0",
+    "tsx": "^4.19.0",
+    "typescript": "~5.9.0"
+  }
+}
